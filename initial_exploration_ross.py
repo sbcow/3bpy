@@ -1,4 +1,4 @@
-import numpy as np # type: ignore
+import numpy as np  # type: ignore
 import sympy as sp
 import heyoka as hy
 import matplotlib.pyplot as plt
@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 ################
 ### Rotation ###
 ################
+
 
 def convert_rotating_to_inertial_frame(vec, num_theta):
     theta = sp.symbols("theta")
@@ -143,12 +144,30 @@ def convert_rotating_inertial_frame_test():
 ##########################
 ### Hamiltonian system ###
 ##########################
+
+
+def convert_conj_mom_to_vel(state):
+    vx = state[3] + state[1]
+    vy = state[4] - state[0]
+    vz = state[5]
+    state[3:6] = np.array([vx, vy, vz])
+    return state
+
+
+def convert_vel_to_conj_mom(state):
+    px = state[3] - state[1]
+    py = state[4] + state[0]
+    pz = state[5]
+    state[3:6] = np.array([px, py, pz])
+    return state
+
+
 def get_u_bar(mu=None, position=None):
 
     if position is None and mu is None:
         x, y, z, mu = sp.symbols("x y z par[0]")
         mu2 = mu
-        mu1 = 1-mu
+        mu1 = 1 - mu
         r1 = sp.sqrt((x + mu2) ** 2 + y**2 + z**2)
         r2 = sp.sqrt((x - mu1) ** 2 + y**2 + z**2)
 
@@ -168,104 +187,135 @@ def get_u_bar(mu=None, position=None):
         raise RuntimeError("The input combination is not viable.")
 
 
-
 def get_cr3bp_hamiltonian(mu=None, state=None, conj_mom=False):
 
-
     if conj_mom and state is None:
-        x, y, _, px, py, pz, mu = sp.symbols("x y z px py pz par[0]")
+        x, y, z, px, py, pz, mu = sp.symbols("x y z px py pz par[0]")
         Ubar = get_u_bar()
         return sp.simplify(0.5 * ((px + y) ** 2 + (py - x) ** 2 + pz**2) + Ubar)
-    elif conj_mom and state is not None:
+    elif conj_mom and state is not None and mu is not None:
         Ubar = get_u_bar(mu, state[0:3])
-        x, y, _, px, py, pz = state
+        x, y, z, px, py, pz = state
         return 0.5 * ((px + y) ** 2 + (py - x) ** 2 + pz**2) + Ubar
     elif not conj_mom and state is None:
-        x, y, _, vx, vy, vz, mu = sp.symbols("x y z vx vy vz par[0]")
+        x, y, z, vx, vy, vz, mu = sp.symbols("x y z vx vy vz par[0]")
         Ubar = get_u_bar()
         return sp.simplify(0.5 * (vx**2 + vy**2 + vz**2) + Ubar)
-    elif not conj_mom and state is not None:
+    elif not conj_mom and state is not None and mu is not None:
         Ubar = get_u_bar(mu, state[0:3])
-        x, y, _, vx, vy, vz = state
+        x, y, z, vx, vy, vz = state
         return 0.5 * (vx**2 + vy**2 + vz**2) + Ubar
     else:
         raise RuntimeError("The input is malformed")
 
-# def get_u_bar(mu, position=None):
-
-#     mu2 = mu
-#     mu1 = 1-mu
-#     if position is None:
-#         x, y, z = sp.symbols("x y z")
-#         r1 = sp.sqrt((x + mu2) ** 2 + y**2 + z**2)
-#         r2 = sp.sqrt((x - mu1) ** 2 + y**2 + z**2)
-
-#         U = (-mu1 / r1) - (mu2 / r2) - (0.5 * mu1 * mu2)
-#         return -0.5 * (x**2 + y**2) + U
-
-#     elif position is not None:
-#         x, y, z = position
-#         r1 = np.sqrt((x + mu2) ** 2 + y**2 + z**2)
-#         r2 = np.sqrt((x - mu1) ** 2 + y**2 + z**2)
-
-#         U = -mu1 / r1 - mu2 / r2 - 0.5 * mu1 * mu2
-#         return -0.5 * (x**2 + y**2) + U
-#     else:
-#         raise RuntimeError("The input combination is not viable.")
-
-
-
-# def get_cr3bp_hamiltonian(mu, state=None, conj_mom=False):
-
-
-#     if conj_mom and state is None:
-#         Ubar = get_u_bar(mu)
-#         x, y, _, px, py, pz = sp.symbols("x y z px py pz")
-#         return sp.simplify(0.5 * ((px + y) ** 2 + (py - x) ** 2 + pz**2) + Ubar)
-#     elif conj_mom and state is not None:
-#         Ubar = get_u_bar(mu, state[0:3])
-#         x, y, _, px, py, pz = state
-#         return 0.5 * ((px + y) ** 2 + (py - x) ** 2 + pz**2) + Ubar
-#     elif not conj_mom and state is None:
-#         Ubar = get_u_bar(mu)
-#         x, y, _, vx, vy, vz = sp.symbols("x y z vx vy vz")
-#         return sp.simplify(0.5 * (vx**2 + vy**2 + vz**2) + Ubar)
-#     elif not conj_mom and state is not None:
-#         Ubar = get_u_bar(mu, state[0:3])
-#         x, y, _, vx, vy, vz = state
-#         return 0.5 * (vx**2 + vy**2 + vz**2) + Ubar
-#     else:
-#         raise RuntimeError("The input is malformed")
 
 def get_jacobi_integral(mu, state=None, conj_mom=False):
     E = get_cr3bp_hamiltonian(mu, state, conj_mom)
     return -2 * E
 
 
-def get_hamiltonian_state_derivative(H, conj_mom=False):
+def get_current_symbols(expression):
+    if isinstance(expression, sp.core.expr.Expr):
+        symbol_dict = {it: symb for it, symb in enumerate(expression.free_symbols)}
 
-    if conj_mom:
-        x, y, z, px, py, pz = sp.symbols("x y z px py pz")
+
+def get_hamiltonian_state_derivative(H, mu_val=None, state=None, conj_mom=False):
+
+    if conj_mom and state is None:
+        x, y, z, px, py, pz, mu = sp.symbols("x y z px py pz par[0]")
         xdot = sp.diff(H, px)
         ydot = sp.diff(H, py)
         zdot = sp.diff(H, pz)
         pxdot = -sp.diff(H, x)
         pydot = -sp.diff(H, y)
         pzdot = -sp.diff(H, z)
-        return np.array([xdot, ydot, zdot, pxdot, pydot, pzdot])
-    else:
-        x, y, z, vx, vy, vz = sp.symbols("x y z vx vy vz")
+        return sp.simplify(sp.Array([xdot, ydot, zdot, pxdot, pydot, pzdot]))
+    elif not conj_mom and state is None:
+        x, y, z, vx, vy, vz, mu = sp.symbols("x y z vx vy vz par[0]")
         xdot = sp.diff(H, vx)
         ydot = sp.diff(H, vy)
         zdot = sp.diff(H, vz)
         vxdot = -sp.diff(H, x)
         vydot = -sp.diff(H, y)
         vzdot = -sp.diff(H, z)
-        return np.array([xdot, ydot, zdot, vxdot, vydot, vzdot])
+        return sp.simplify(sp.Array([xdot, ydot, zdot, vxdot, vydot, vzdot]))
+    elif conj_mom and state is not None:
+        x, y, z, px, py, pz, mu = sp.symbols("x y z px py pz par[0]")
+        xdot = sp.diff(H, px)
+        ydot = sp.diff(H, py)
+        zdot = sp.diff(H, pz)
+        pxdot = -sp.diff(H, x)
+        pydot = -sp.diff(H, y)
+        pzdot = -sp.diff(H, z)
+        state_derivative = sp.Array([xdot, ydot, zdot, pxdot, pydot, pzdot])
+        state_val_dict = {
+            x: state[0],
+            y: state[1],
+            z: state[2],
+            px: state[3],
+            py: state[4],
+            pz: state[5],
+            mu: mu_val,
+        }
+        state_derivative_eval = np.zeros((len(state_derivative)))
+        for it, state_item in enumerate(state_derivative):
+            current_variables = list(state_item.free_symbols)
+            state_derivative_eval[it] = state_item.subs(
+                {symb: state_val_dict[symb] for symb in current_variables}
+            ).evalf()
+        return state_derivative_eval
+    elif not conj_mom and state is not None:
+        x, y, z, vx, vy, vz, mu = sp.symbols("x y z vx vy vz par[0]")
+        xdot = sp.diff(H, vx)
+        ydot = sp.diff(H, vy)
+        zdot = sp.diff(H, vz)
+        vxdot = -sp.diff(H, x)
+        vydot = -sp.diff(H, y)
+        vzdot = -sp.diff(H, z)
+        state_derivative = sp.Array([xdot, ydot, zdot, vxdot, vydot, vzdot])
+        return np.array(
+            [
+                state_item.evalf(
+                    subs={
+                        x: state[0],
+                        y: state[1],
+                        z: state[2],
+                        vx: state[3],
+                        vy: state[4],
+                        vz: state[5],
+                        mu: mu_val,
+                    }
+                )
+                for state_item in state_derivative
+            ],
+            dtype="float64",
+        )
 
 
 def convert_sympy_to_hy(state_derivative):
-    return [hy.from_sympy(i) for i in state_derivative]
+    if (
+        isinstance(
+            state_derivative,
+            (tuple, list, np.ndarray),
+        )
+        and isinstance(state_derivative[0], sp.core.symbol.Symbol)
+    ) or isinstance(
+        state_derivative, sp.tensor.array.dense_ndim_array.ImmutableDenseNDimArray
+    ):
+        return [hy.from_sympy(i) for i in state_derivative]
+    elif (
+        isinstance(state_derivative, list)
+        and isinstance(state_derivative[0], tuple)
+        and isinstance(state_derivative[0][0], sp.core.symbol.Symbol)
+    ):
+        state_derivative_hy = []
+        for tup in state_derivative:
+            state_derivative_hy.append(tuple(hy.from_sympy(i) for i in tup))
+        return state_derivative_hy
+    else:
+        raise RuntimeError(
+            "The type provided is not implemented and can not be dealt with."
+        )
 
 
 def get_ta(H, init_cond, batch_mode=False, conj_mom=False):
@@ -274,7 +324,7 @@ def get_ta(H, init_cond, batch_mode=False, conj_mom=False):
         x, y, z, xdot, ydot, zdot = hy.make_vars("x", "y", "z", "vx", "vy", "vz")
     else:
         # Create the symbolic variables in heyoka.
-        x, y, z, xdot, ydot, zdot  = hy.make_vars("x", "y", "z", "px", "py", "pz")
+        x, y, z, xdot, ydot, zdot = hy.make_vars("x", "y", "z", "px", "py", "pz")
 
     state_derivative = get_hamiltonian_state_derivative(H, conj_mom=conj_mom)
     state_derivative = convert_sympy_to_hy(state_derivative)
@@ -307,6 +357,69 @@ def get_ta(H, init_cond, batch_mode=False, conj_mom=False):
             # Initial conditions.
             init_cond,
         )
+
+
+def get_ta_var_raw(state, f, phi, dphidt, ic, ic_var, event=None):
+    dyn = []
+    for state_element, rhs in zip(state, f):
+        dyn.append((state_element, rhs))
+    for state_element, rhs in zip(phi.reshape(36, 1), dphidt.reshape(36, 1)):
+        dyn.append((state_element, rhs))
+
+    dyn_hy = convert_sympy_to_hy(dyn)
+    # vsys = hy.var_ode_sys(dyn_hy, hy.var_args.vars, order=2)
+    # assert(isinstance(vsys, hy.core.var_ode_sys))
+    # assert(isinstance(ic+ic_var, list))
+    # assert(isinstance((ic+ic_var)[0], float))
+    if isinstance(event, hy.core.t_event_dbl):
+        return hy.taylor_adaptive(
+            # The ODEs.
+            dyn_hy,
+            # sys=vsys,
+            # The initial conditions.
+            state=ic + ic_var,
+            # pars=[1.0]
+            # Operate below machine precision
+            # and in high-accuracy mode.
+            t_events = [event],
+            tol=1e-18,
+            high_accuracy=True,
+        )
+    elif event is None:
+        return hy.taylor_adaptive(
+            # The ODEs.
+            dyn_hy,
+            # sys=vsys,
+            # The initial conditions.
+            state=ic + ic_var,
+            # pars=[1.0]
+            # Operate below machine precision
+            # and in high-accuracy mode.
+            tol=1e-18,
+            high_accuracy=True,
+        )
+    else:
+        raise RuntimeError("An error occurred. Review the event being passed.")
+
+
+def get_ta_var(ic, ic_var, conj_mom=False, event=None):
+    phi = sp.Matrix([[sp.symbols(f"phi_{i}{j}") for j in range(6)] for i in range(6)])
+
+    H = get_cr3bp_hamiltonian(conj_mom=conj_mom)
+    f = get_hamiltonian_state_derivative(H, conj_mom=conj_mom)
+    if not conj_mom:
+        # Create the symbolic variables in heyoka.
+        x, y, z, vx, vy, vz = sp.symbols("x y z vx vy vz")
+        state = sp.Array([x, y, z, vx, vy, vz])
+    else:
+        # Create the symbolic variables in heyoka.
+        x, y, z, px, py, pz = sp.symbols("x y z px py pz")
+        state = sp.Array([x, y, z, px, py, pz])
+
+    dfdstate = f.diff(state)
+    dphidt = sp.Matrix(dfdstate) * sp.Matrix(phi)
+
+    return get_ta_var_raw(state, f, phi, dphidt, ic, ic_var, event)
 
 
 def get_mu_bar(mu, xL):
@@ -370,30 +483,194 @@ def find_lagrange_points(mu):
 ### Differential correction ###
 ###############################
 
-def liadifcor(x0g, show=0):
+
+def get_variational_symbols():
+    symbols_phi = []
+    for i in range(6):
+        for j in range(6):
+            # Here we define the symbol for the variations
+            symbols_phi.append("phi_" + str(i) + str(j))
+    phi = np.array(hy.make_vars(*symbols_phi)).reshape((6, 6))
+
+    dfdx = []
+
+    H = get_cr3bp_hamiltonian(conj_mom=False)
+    f = get_hamiltonian_state_derivative(H, conj_mom=False)
+    x, y, z, vx, vy, vz = sp.symbols("x y z vx vy vz")
+    state = sp.Array[x, y, z, vx, vy, vz]
+
+    dfdstate = f.diff(state)
+    for i in range(6):
+        for j in range(6):
+            dfdx.append(sp.diff(f[i], x[j]))
+    dfdx = np.array(dfdx).reshape((6, 6))
+
+    dphidt = dfdx @ phi
+
+import numpy as np
+
+def prtbp(t, x):
+    global mu
+
+    mu1 = 1 - mu  # mass of larger primary (nearest origin on left)
+    mu2 = mu      # mass of smaller primary (furthest from origin on right)
+
+    r3 = ((x[0] + mu2) ** 2 + x[1] ** 2) ** 1.5  # r: distance to m1, LARGER MASS
+    R3 = ((x[0] - mu1) ** 2 + x[1] ** 2) ** 1.5  # R: distance to m2, smaller mass
+
+    xdot = np.zeros(4)
+    xdot[0] = x[2]
+    xdot[1] = x[3]
+    xdot[2] = x[0] - (mu1 * (x[0] + mu2) / r3) - (mu2 * (x[0] - mu1) / R3) + 2 * x[3]
+    xdot[3] = x[1] - (mu1 * x[1] / r3) - (mu2 * x[1] / R3) - 2 * x[2]
+    
+    return xdot
+
+import numpy as np
+from scipy.integrate import solve_ivp
+
+def PHIget(x0, tf):
+    global tol
+    OPTIONS = {'rtol': 3 * tol, 'atol': tol}
+
+    N = len(x0)
+
+    PHI_0 = np.zeros(N**2 + N)
+    PHI_0[:N**2] = np.eye(N).flatten()
+    PHI_0[N**2:N**2 + N] = x0
+
+    if N == 4:
+        sol = solve_ivp(var2D, [0, tf], PHI_0, method='RK45', **OPTIONS)
+    elif N == 6:
+        sol = solve_ivp(var3D, [0, tf], PHI_0, method='RK45', **OPTIONS)
+
+    t = sol.t
+    PHI = sol.y.T
+    x = PHI[:, N**2:N**2 + N]  # trajectory
+    phi_T = PHI[-1, :N**2].reshape(N, N)  # monodromy matrix, PHI(0,T)
+
+    return x, t, phi_T, PHI
+
+def var2D(t, PHI):
+    global FORWARD, mu
+
+    mu1 = 1 - mu
+    mu2 = mu
+
+    x = PHI[16:20]
+    phi = PHI[:16].reshape(4, 4)
+
+    r2 = (x[0] + mu) ** 2 + x[1] ** 2  # r: distance to m1, LARGER MASS
+    R2 = (x[0] - mu1) ** 2 + x[1] ** 2  # R: distance to m2, smaller mass
+    r3 = r2 ** 1.5
+    r5 = r2 ** 2.5
+    R3 = R2 ** 1.5
+    R5 = R2 ** 2.5
+
+    omgxx = 1 + (mu1 / r5) * (3 * (x[0] + mu2) ** 2) + (mu2 / R5) * (3 * (x[0] - mu1) ** 2) - (mu1 / r3 + mu2 / R3)
+    omgyy = 1 + (mu1 / r5) * (3 * x[1] ** 2) + (mu2 / R5) * (3 * x[1] ** 2) - (mu1 / r3 + mu2 / R3)
+    omgxy = 3 * x[1] * (mu1 * (x[0] + mu2) / r5 + mu2 * (x[0] - mu1) / R5)
+
+    F = np.array([[0, 0, 1, 0],
+                  [0, 0, 0, 1],
+                  [omgxx, omgxy, 0, 2],
+                  [omgxy, omgyy, -2, 0]])
+
+    phidot = F @ phi  # variational equation
+
+    PHIdot = np.zeros(20)
+    PHIdot[:16] = phidot.flatten()
+    PHIdot[16] = x[2]
+    PHIdot[17] = x[3]
+    PHIdot[18] = x[0] - (mu1 * (x[0] + mu2) / r3) - (mu2 * (x[0] - mu1) / R3) + 2 * x[3]
+    PHIdot[19] = x[1] - (mu1 * x[1] / r3) - (mu2 * x[1] / R3) - 2 * x[2]
+    PHIdot[16:20] *= FORWARD
+
+    return PHIdot
+
+
+import numpy as np
+from scipy.integrate import solve_ivp
+
+def haloy(t1):
+    global t0_z, x0_z, x1_zgl
+
+    if t1 == t0_z:
+        x1_zgl = x0_z
+    else:
+        xx, tt = intDT(x0_z, t0_z, t1)
+        x1_zgl = xx[-1, :]
+
+    return x1_zgl[1]
+
+def intDT(x0, t0, tf):
+    global FORWARD, tol
+
+    options = {'rtol': 3 * tol, 'atol': tol}
+
+    m = len(x0)
+
+    if m == 4:
+        sol = solve_ivp(prtbp, [t0, tf], x0, **options)
+        t, x = sol.t, sol.y.T
+    elif m == 6:
+        sol = solve_ivp(rtbp, [t0, tf], x0, **options)
+        t, x = sol.t, sol.y.T
+
+    t = FORWARD * t  # for backwards integration, time is like a countdown
+
+    return x, t
+
+import numpy as np
+from scipy.optimize import fsolve
+
+def find0(x0):
+    global t0_z, x0_z, x1_zgl
+
+    tolzero = 1.e-10
+    options = {'xtol': tolzero, 'maxfev': 1000}
+
+    t0_z = np.pi / 2 - 0.15
+    xx = int(x0)
+    x0_z = xx[-1, :]
+    t1_z = fsolve(haloy, t0_z, **options)[0]
+    x1_z = x1_zgl
+
+    del globals()['t0_z']
+    del globals()['x0_z']
+    del globals()['x1_zgl']
+
+    return t1_z, x1_z
+
+
+def liadifcor(x0g, xL, mu, show=0):
 # [x0,t1]=liadifcor(x0g,show)
-# 
-# This is the differential correction routine to create planar periodic 
-# Liapunov orbits about L1,L2, or L3 in the CR3BP. It keeps the initial 
+#
+# This is the differential correction routine to create planar periodic
+# Liapunov orbits about L1,L2, or L3 in the CR3BP. It keeps the initial
 # x value constant and varies the y-velocity value.
-# 
+#
 # output: x0  = initial state on the Liapunov (on the xz-plane) in nondim.
 # 	CR3BP coords.
-#   t1  = half-period of Liapunov orbit in nondim. CR3BP time 
-# 
+#   t1  = half-period of Liapunov orbit in nondim. CR3BP time
+#
 # input: x0g  = first guess of initial state on the Liapunov orbit
 #  show = 1 to plot successive orbit  (default=0)
-# 
+#
 # ------------------------------------------------------------------------
 # CR3BP with the LARGER MASS, m1 to the left of the origin at (-mu,0)
 # and m2, or the planet (ie. Earth), is at (1 - mu, 0)
-# 
+#
 #                L4
 # -L3----m1--+-------L1--m2--L2-
 #                L5
-# 
+#
 # Shane Ross (revised 8.28.97)
-    global mu
+
+    mubar = mu / np.abs(xL - 1 + mu)**3 + (1 - mu) / np.abs(xL + mu)**3
+
+    a = 1 + 2 * mubar
+    b = mubar - 1
 
     t0 = 0
     dxdot1 = 1
@@ -415,7 +692,7 @@ def liadifcor(x0g, show=0):
         x, t, phi_t1, PHI = PHIget(x0g, t1)
 
         if show == 1:
-            plotX(x)
+            plt.scatter(x, 0)
             plt.plot(a * x[0, 0], a * x[0, 1], 'wo')
             plt.axis([min(x[:, 0]), max(x[:, 0]), min(x[:, 1]), max(x[:, 1])])
             plt.axis('equal')
@@ -440,7 +717,6 @@ def liadifcor(x0g, show=0):
 
     x0 = x0g
     return x0, t1
-
 
 
 # ##############
@@ -640,7 +916,6 @@ def liadifcor(x0g, show=0):
 #         return -0.5 * (x**2 + y**2) + U
 #     else:
 #         raise RuntimeError("The input combination is not viable.")
-
 
 
 # def get_cr3bp_hamiltonian(mu=None, state=None, conj_mom=False):
