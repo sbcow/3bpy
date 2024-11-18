@@ -79,7 +79,7 @@ def energy(X, mu):
     mu2 = mu
 
     Vsqrd = X[:, 2]**2 + X[:, 3]**2
-    Ubar = - mu1 / np.sqrt((X[:, 0] + mu2)**2 + X[:, 1]**2) \
+    Ubar =  \
            - mu2 / np.sqrt((X[:, 0] - mu1)**2 + X[:, 1]**2) \
            - 0.5 * (X[:, 0]**2 + X[:, 1]**2) - 0.5 * mu1 * mu2
 

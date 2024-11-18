@@ -64,41 +64,45 @@ ta.pars[0] = mu
 out = ta.propagate_grid(epochs)
 out = out[5]
 half_period = xaxis_crossings[0][0]
-# x_d = np.array([ta.state[0], 0, 0, 0, ta.state[4], 0])
-x_d = ta.state[:6]
-x_d[3] = 0.0
 
+new_times = np.linspace(0.0, 2 * half_period, 2000)
+
+# ta_original = copy.deepcopy(ta)
+# x0_original = copy.deepcopy(x0)
 
 # No event
-ta = get_ta_var(x0.tolist(), init_cond_var, conj_mom=True)
-ta_original = copy.deepcopy(ta)
-x0_original = copy.deepcopy(x0)
+ta_noevent = get_ta_var(x0.tolist(), init_cond_var, conj_mom=True)
+ta_noevent.time = 0.0
+ta_noevent.state[:] = x0.tolist() + np.eye(6).reshape((36,)).tolist()
+ta_noevent.pars[0] = mu
+out_init = ta_noevent.propagate_grid(new_times)
+out_init = out_init[5]
 
 # With x0 += dx0 / 1e4, it converges quickly and stops at ~1e-6
 #Only x0[4] += dx0[4] /1e2 also converges quickly to ~1e-6
 
 def corrector(ta, x0):
 
-    state_atevent = ta.state[:6]
-    Phi_atevent = ta.state[6:].reshape((6, 6))
-    dx_atevent = state_atevent - x_d
-    print("error was:", np.linalg.norm(dx_atevent))
-    dx0 = np.linalg.inv(Phi_atevent)@dx_atevent
-    # print("condition number is:", np.linalg.cond(Phi_atevent))
-    x0[4] += dx0[4] / 1e2# * np.linalg.norm(dx_atevent) * 10
+    state_T = ta.state[:6]
+    Phi_T = ta.state[6:].reshape((6, 6))
+    dx_T = state_T - x0
+    print("error was:", np.linalg.norm(dx_T))
+    dx0 = np.linalg.inv(np.eye(6) - Phi_T)@dx_T
+    # print("condition number is:", np.linalg.cond(Phi_T))
+    # x0[4] += dx0[4] / 1e2# * np.linalg.norm(dx_T) * 10
+    x0[4] += dx0[4]# / 1e2
     ta.pars[0] = mu
     ta.time = 0.0
     ta.state[:] = x0.tolist() + np.eye(6).reshape((36,)).tolist()
     _ = ta.propagate_until(2 * half_period)
-    state_atevent = ta.state[:6]
-    dx_atevent = state_atevent - x_d
-    print("new error is:", np.linalg.norm(dx_atevent))
+    state_T = ta.state[:6]
+    dx_T = state_T - x0
+    print("new error is:", np.linalg.norm(dx_T))
     return ta, x0
 
-for _ in range(10):
+ta = ta_noevent
+for _ in range(5):
     ta, x0 = corrector(ta, x0)
-
-new_times = np.linspace(0.0, 2 * half_period, 2000)
 
 ta_periodic = ta
 x0_periodic = x0
@@ -107,14 +111,6 @@ ta_periodic.state[:] = x0_periodic.tolist() + np.eye(6).reshape((36,)).tolist()
 ta_periodic.pars[0] = mu
 out_periodic = ta_periodic.propagate_grid(new_times)
 out_periodic = out_periodic[5]
-
-ta_original.time = 0.0
-ta_original.state[:] = x0_original.tolist() + np.eye(6).reshape((36,)).tolist()
-ta_original.pars[0] = mu
-out_original = ta_original.propagate_grid(new_times)
-out_original = out_original[5]
-
-# out = out[5]
 
 # Define relevant positions in rotating frame
 m1_pos = np.array([-mu, 0, 0])
@@ -140,12 +136,13 @@ potentials = get_u_bar(mu, (x_grid, y_grid, np.zeros(np.shape(x_grid))))
 
 plt.figure()
 # s/c trajectory
-plt.plot(out_original[:, 0], out_original[:, 1], linestyle="-", linewidth=1, c='r')
-plt.scatter(out_original[-1, 0], out_original[-1, 1], s=5)
+plt.plot(out_init[:, 0], out_init[:, 1], linestyle="-", linewidth=1, c='r')
+plt.scatter(out_init[-1, 0], out_init[-1, 1], s=5)
 # plt.plot(out[:, 0], out[:, 1], linestyle="-", linewidth=1, c='b')
 # plt.scatter(out[-1, 0], out[-1, 1], s=5)
 plt.plot(out_periodic[:, 0], out_periodic[:, 1], linestyle="-", linewidth=1, c='k')
 plt.scatter(out_periodic[-1, 0], out_periodic[-1, 1], s=5)
+plt.scatter(xaxis_crossings[0][1], 0, s=20)
 
 # masses
 plt.scatter(-mu, 0, c="r", s=20)  # m1
